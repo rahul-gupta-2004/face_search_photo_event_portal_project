@@ -1,4 +1,4 @@
-# Photo Event Portal Project
+# Face Search Photo Event Portal Project
 
 A Streamlit application for a live event photo delivery portal. It uses pure vector similarity embeddings with ChromaDB and DeepFace to search for attendee photos.
 

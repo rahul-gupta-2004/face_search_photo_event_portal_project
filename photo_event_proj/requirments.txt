@@ -1,6 +1,5 @@
 streamlit
 opencv-python-headless
 chromadb
-pysqlite3-binary
 deepface
 tf-keras

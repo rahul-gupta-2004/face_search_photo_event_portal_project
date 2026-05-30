@@ -1,6 +1,6 @@
-python3 -m venv medium_articles_venv
+python3 -m venv face_search_venv
 
-source medium_articles_venv/bin/activate
+source face_search_venv/bin/activate
 
 pip install ...
 

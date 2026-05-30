@@ -1,0 +1,7 @@
+python3 -m venv medium_articles_venv
+
+source medium_articles_venv/bin/activate
+
+pip install ...
+
+deactivate

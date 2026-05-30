@@ -17,7 +17,7 @@ sys.stderr = stderr
 
 st.set_page_config(page_title="Face Search App", page_icon=":mag:", layout="wide")
 
-st.title("Live Event Photo Delivery Portal")
+st.title("Live Event Photo Portal")
 st.write("Select an attendee profile to query the database using pure vector similarity embeddings with dynamic cluster filtering.")
 st.write("---")
 

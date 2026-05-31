@@ -46,17 +46,21 @@ selected_user = st.sidebar.selectbox(
 if selected_user != "-- Select Attendee --":
     matched_photo_paths = []
 
-    # BRANCH 1: Retrieve every image stored inside the vector database index
+    # BRANCH 1: Retrieve every image directly from the storage folder
     if selected_user == "View All Images":
         st.sidebar.write("Displaying all indexed gallery records.")
         
-        # Get all entries from the collection
-        all_records = collection.get(include=["metadatas"])
-        if all_records and "metadatas" in all_records and all_records["metadatas"]:
-            for metadata in all_records["metadatas"]:
-                path = metadata["file_path"]
-                if os.path.exists(path) and path not in matched_photo_paths:
-                    matched_photo_paths.append(path)
+        # Scan the images directory directly to ensure image_1 through image_23 appear
+        target_dir = "./images"
+        if os.path.exists(target_dir):
+            for filename in os.listdir(target_dir):
+                # Filter for standard image extensions
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                    path = os.path.join(target_dir, filename)
+                    if path not in matched_photo_paths:
+                        matched_photo_paths.append(path)
+        else:
+            st.error(f"ERROR: Storage directory '{target_dir}' not found.")
 
     # BRANCH 2: Perform face recognition and vector search for specific attendee
     else:

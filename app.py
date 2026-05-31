@@ -36,108 +36,127 @@ def initialize_backend():
 
 collection, face_cascade = initialize_backend()
 
-# SIDEBAR: Clean user mapping using your exact filenames directly
+# SIDEBAR: Registration dropdown with View All option added above attendees
 st.sidebar.header("User Registration Portal")
 selected_user = st.sidebar.selectbox(
     "Choose User to Retrieve Photos:",
-    ["-- Select Attendee --", "Chris Tucker", "Jackie Chan"]
+    ["-- Select Attendee --", "View All Images", "Chris Tucker", "Jackie Chan"]
 )
 
 if selected_user != "-- Select Attendee --":
-    st.sidebar.write(f"Querying profile records for: **{selected_user}**")
-    
-    # Direct path mapping without messy conditional block clusters
-    filename_map = {"Chris Tucker": "chris_tucker.png", "Jackie Chan": "jackie_chan.png"}
-    sample_path = f"test_images/{filename_map[selected_user]}"
-    
-    if not os.path.exists(sample_path):
-        st.sidebar.error(f"Missing registration asset: '{sample_path}'")
-        st.stop()
+    matched_photo_paths = []
 
-    # Load and display active registration avatar in sidebar
-    opencv_img = cv2.imread(sample_path)
-    if opencv_img is None:
-        st.error(f"ERROR: Failed to decode {sample_path}")
-        st.stop()
+    # BRANCH 1: Retrieve every image stored inside the vector database index
+    if selected_user == "View All Images":
+        st.sidebar.write("Displaying all indexed gallery records.")
         
-    st.sidebar.image(cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB), caption="Active Reference File", width=180)
-    
-    with st.spinner("Extracting face embeddings and searching vector index..."):
-        try:
-            # Face localization pipeline
-            gray = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2GRAY)
-            detected_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+        # Get all entries from the collection
+        all_records = collection.get(include=["metadatas"])
+        if all_records and "metadatas" in all_records and all_records["metadatas"]:
+            for metadata in all_records["metadatas"]:
+                path = metadata["file_path"]
+                if os.path.exists(path) and path not in matched_photo_paths:
+                    matched_photo_paths.append(path)
+
+    # BRANCH 2: Perform face recognition and vector search for specific attendee
+    else:
+        st.sidebar.write(f"Querying profile records for: **{selected_user}**")
+        
+        # Direct path mapping without messy conditional block clusters
+        filename_map = {"Chris Tucker": "chris_tucker.png", "Jackie Chan": "jackie_chan.png"}
+        sample_path = f"test_images/{filename_map[selected_user]}"
+        
+        if not os.path.exists(sample_path):
+            st.sidebar.error(f"Missing registration asset: '{sample_path}'")
+            st.stop()
+
+        # Load and display active registration avatar in sidebar
+        opencv_img = cv2.imread(sample_path)
+        if opencv_img is None:
+            st.error(f"ERROR: Failed to decode {sample_path}")
+            st.stop()
             
-            if len(detected_faces) == 0:
-                st.warning("No face structure isolated from registration file.")
-                st.stop()
+        st.sidebar.image(cv2.cvtColor(opencv_img, cv2.COLOR_BGR2RGB), caption="Active Reference File", width=180)
+        
+        with st.spinner("Extracting face embeddings and searching vector index..."):
+            try:
+                # Face localization pipeline
+                gray = cv2.cvtColor(opencv_img, cv2.COLOR_BGR2GRAY)
+                detected_faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
                 
-            (x, y, w, h) = detected_faces[0]
-            cropped_face = opencv_img[y:y+h, x:x+w]
-
-            # Generate vector representations via ArcFace
-            user_embedding_objs = DeepFace.represent(
-                img_path=cropped_face, model_name="ArcFace", detector_backend="skip"
-            )
-            target_vector = user_embedding_objs[0]["embedding"]
-
-            # Query ChromaDB Vector space for matches
-            query_results = collection.query(query_embeddings=[target_vector], n_results=20)
-            matched_photo_paths = []
-
-            if query_results and 'metadatas' in query_results and len(query_results['metadatas'][0]) > 0:
-                raw_metadatas = query_results['metadatas'][0]
-                raw_distances = query_results['distances'][0]
-                
-                # Dynamic cutoff based on the maximum distance gap between consecutive matches
-                cutoff_index = len(raw_distances)
-                max_gap = 0.0
-                
-                for i in range(len(raw_distances) - 1):
-                    gap = raw_distances[i+1] - raw_distances[i]
-                    # A spike greater than 5.0 indicates a clear transition to a different person
-                    if gap > 5.0 and gap > max_gap:
-                        max_gap = gap
-                        cutoff_index = i + 1
-                        break
-                
-                # Filter results using the dynamic cutoff index
-                for idx in range(cutoff_index):
-                    path = raw_metadatas[idx]["file_path"]
-                    if os.path.exists(path) and path not in matched_photo_paths:
-                        matched_photo_paths.append(path)
-            
-            # SORT SYSTEM: Sort paths in ascending order naturally by file numeric ID string lengths
-            matched_photo_paths.sort(key=lambda x: [int(s) if s.isdigit() else s.lower() for s in os.path.basename(x).replace('.', '_').split('_')])
-
-            # RENDER LAYER: Display matches in a tight, clean 3-column table grid layout
-            st.subheader(f"True Vector Matched Photos found ({len(matched_photo_paths)} images)")
-            
-            if len(matched_photo_paths) > 0:
-                # Creates structural row arrays containing exactly 3 columns each
-                for i in range(0, len(matched_photo_paths), 3):
-                    row_paths = matched_photo_paths[i:i+3]
-                    cols = st.columns(3)
+                if len(detected_faces) == 0:
+                    st.warning("No face structure isolated from registration file.")
+                    st.stop()
                     
-                    for index, path in enumerate(row_paths):
-                        filename = os.path.basename(path)
-                        display_img = cv2.imread(path)
-                        
-                        if display_img is not None:
-                            with cols[index]:
-                                # Renders cleanly with fixed, clear image sizing parameters
-                                st.image(
-                                    cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB), 
-                                    caption=filename, 
-                                    width=240
-                                )
-                        else:
-                            with cols[index]:
-                                st.error(f"Read error: {filename}")
-            else:
-                st.warning("No matching vectors found in database index matching this user profile within the confidence threshold.")
+                (x, y, w, h) = detected_faces[0]
+                cropped_face = opencv_img[y:y+h, x:x+w]
+
+                # Generate vector representations via ArcFace
+                user_embedding_objs = DeepFace.represent(
+                    img_path=cropped_face, model_name="ArcFace", detector_backend="skip"
+                )
+                target_vector = user_embedding_objs[0]["embedding"]
+
+                # Query ChromaDB Vector space for matches
+                query_results = collection.query(query_embeddings=[target_vector], n_results=20)
+
+                if query_results and 'metadatas' in query_results and len(query_results['metadatas'][0]) > 0:
+                    raw_metadatas = query_results['metadatas'][0]
+                    raw_distances = query_results['distances'][0]
+                    
+                    # Dynamic cutoff based on the maximum distance gap between consecutive matches
+                    cutoff_index = len(raw_distances)
+                    max_gap = 0.0
+                    
+                    for i in range(len(raw_distances) - 1):
+                        gap = raw_distances[i+1] - raw_distances[i]
+                        # A spike greater than 5.0 indicates a clear transition to a different person
+                        if gap > 5.0 and gap > max_gap:
+                            max_gap = gap
+                            cutoff_index = i + 1
+                            break
+                    
+                    # Filter results using the dynamic cutoff index
+                    for idx in range(cutoff_index):
+                        path = raw_metadatas[idx]["file_path"]
+                        if os.path.exists(path) and path not in matched_photo_paths:
+                            matched_photo_paths.append(path)
+                            
+            except Exception as err:
+                st.error(f"Execution Error running vector query engine: {str(err)}")
+                st.stop()
+    
+    # SORT SYSTEM: Sort paths in ascending order naturally by file numeric ID string lengths
+    matched_photo_paths.sort(key=lambda x: [int(s) if s.isdigit() else s.lower() for s in os.path.basename(x).replace('.', '_').split('_')])
+
+    # RENDER LAYER: Display matches in a tight, clean 3-column table grid layout
+    if selected_user == "View All Images":
+        st.subheader(f"All Gallery Images found ({len(matched_photo_paths)} images)")
+    else:
+        st.subheader(f"True Vector Matched Photos found ({len(matched_photo_paths)} images)")
+    
+    if len(matched_photo_paths) > 0:
+        # Creates structural row arrays containing exactly 3 columns each
+        for i in range(0, len(matched_photo_paths), 3):
+            row_paths = matched_photo_paths[i:i+3]
+            cols = st.columns(3)
+            
+            for index, path in enumerate(row_paths):
+                filename = os.path.basename(path)
+                display_img = cv2.imread(path)
                 
-        except Exception as err:
-            st.error(f"Execution Error running vector query engine: {str(err)}")
+                if display_img is not None:
+                    with cols[index]:
+                        # Renders cleanly with fixed, clear image sizing parameters
+                        st.image(
+                            cv2.cvtColor(display_img, cv2.COLOR_BGR2RGB), 
+                            caption=filename, 
+                            width=240
+                        )
+                else:
+                    with cols[index]:
+                        st.error(f"Read error: {filename}")
+    else:
+        st.warning("No photos found in the database index.")
 else:
     st.info("Please select an attendee profile from the sidebar dropdown menu to simulate matching.")

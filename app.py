@@ -36,33 +36,41 @@ def initialize_backend():
 
 collection, face_cascade = initialize_backend()
 
-# SIDEBAR: Registration dropdown with View All option added above attendees
+# SIDEBAR: Registration dropdown with folder view and database view options
 st.sidebar.header("User Registration Portal")
 selected_user = st.sidebar.selectbox(
     "Choose User to Retrieve Photos:",
-    ["-- Select Attendee --", "View All Images", "Chris Tucker", "Jackie Chan"]
+    ["-- Select Attendee --", "View All Images", "View Vector Database Images", "Chris Tucker", "Jackie Chan"]
 )
 
 if selected_user != "-- Select Attendee --":
     matched_photo_paths = []
 
-    # BRANCH 1: Retrieve every image directly from the storage folder
+    # BRANCH 1: Scan the physical directory directly for all images
     if selected_user == "View All Images":
-        st.sidebar.write("Displaying all indexed gallery records.")
-        
-        # Scan the images directory directly to ensure image_1 through image_23 appear
+        st.sidebar.write("Displaying all assets from the physical images directory.")
         target_dir = "./images"
         if os.path.exists(target_dir):
             for filename in os.listdir(target_dir):
-                # Filter for standard image extensions
                 if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                     path = os.path.join(target_dir, filename)
                     if path not in matched_photo_paths:
                         matched_photo_paths.append(path)
         else:
             st.error(f"ERROR: Storage directory '{target_dir}' not found.")
+            st.stop()
 
-    # BRANCH 2: Perform face recognition and vector search for specific attendee
+    # BRANCH 2: Read only the image paths stored inside the ChromaDB vector index
+    elif selected_user == "View Vector Database Images":
+        st.sidebar.write("Displaying all records currently tracked in the vector index.")
+        all_records = collection.get(include=["metadatas"])
+        if all_records and "metadatas" in all_records and all_records["metadatas"]:
+            for metadata in all_records["metadatas"]:
+                path = metadata["file_path"]
+                if os.path.exists(path) and path not in matched_photo_paths:
+                    matched_photo_paths.append(path)
+
+    # BRANCH 3: Perform localized face recognition and dynamic vector search
     else:
         st.sidebar.write(f"Querying profile records for: **{selected_user}**")
         
@@ -135,7 +143,9 @@ if selected_user != "-- Select Attendee --":
 
     # RENDER LAYER: Display matches in a tight, clean 3-column table grid layout
     if selected_user == "View All Images":
-        st.subheader(f"All Gallery Images found ({len(matched_photo_paths)} images)")
+        st.subheader(f"All Directory Images found ({len(matched_photo_paths)} images)")
+    elif selected_user == "View Vector Database Images":
+        st.subheader(f"All Indexed Vector Database Images found ({len(matched_photo_paths)} images)")
     else:
         st.subheader(f"True Vector Matched Photos found ({len(matched_photo_paths)} images)")
     
@@ -161,6 +171,6 @@ if selected_user != "-- Select Attendee --":
                     with cols[index]:
                         st.error(f"Read error: {filename}")
     else:
-        st.warning("No photos found in the database index.")
+        st.warning("No photos found matching the selection parameter.")
 else:
     st.info("Please select an attendee profile from the sidebar dropdown menu to simulate matching.")
